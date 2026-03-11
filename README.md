@@ -1,91 +1,238 @@
-📄 README – Installation & Desktop‑Verknüpfung für Zählerstände
+# 📦 Debian-Paket (.deb) – Anleitung
 
-Dieses Repository enthält ein Bash‑Installations‑Script, dass:
+Diese Anleitung erklärt, wie das `.deb`-Paket für den Verbrauchsmanager
+gebaut, installiert und deinstalliert wird.
 
-    - Das Python‑Programm zaehlerstaende.py nach /usr/local/bin/ kopiert
-    - Ein 48 × 48 px‑Icon an den richtigen Ort legt
-    - Einen .desktop‑Eintrag im persönlichen Anwendungsordner erstellt
-    - (optional) die Desktop‑Datenbank aktualisiert und
-    - Eine Verknüpfung auf dem Schreibtisch anlegt.
+---
 
-Inhaltsverzeichnis
+## 🗂 Verzeichnisstruktur
 
-    1.Voraussetzungen
-    2. Dateistruktur im Repo
-    3. Installations‑Schritte (einmalig)
-    4. Das komplette Installations‑Script
-    5. Wie das Skript funktioniert – kurze Erläuterung
-    6. Nach der Installation – was tun?
-    7. Fehlerbehebung / FAQ
-    8. Lizenz & Hinweis
+```
+packaging/
+├── debian/                        ← .deb Paketstruktur
+│   ├── DEBIAN/
+│   │   ├── control                ← Paket-Metadaten (Name, Version, Abhängigkeiten)
+│   │   ├── conffiles              ← Konfigurationsdateien (werden bei Update nicht überschrieben)
+│   │   ├── postinst               ← Skript nach der Installation
+│   │   ├── prerm                  ← Skript vor der Deinstallation
+│   │   └── postrm                 ← Skript nach der Deinstallation
+│   ├── etc/
+│   │   └── verbrauchsmanager/
+│   │       └── verbrauchsmanager.conf   ← Systemweite Konfiguration
+│   └── usr/
+│       ├── bin/
+│       │   └── verbrauchsmanager        ← Startskript (Shell-Wrapper)
+│       ├── lib/
+│       │   └── verbrauchsmanager/
+│       │       └── verbrauchsmanager-bin ← Eigentliches Rust-Binary
+│       ├── share/
+│       │   ├── applications/
+│       │   │   └── verbrauchsmanager.desktop ← App-Menü-Eintrag
+│       │   ├── icons/hicolor/
+│       │   │   └── */apps/verbrauchsmanager.svg
+│       │   └── doc/verbrauchsmanager/
+│       │       ├── copyright
+│       │       └── changelog.gz
+├── scripts/
+│   ├── build-deb.sh               ← Haupt-Build-Skript
+│   ├── install.sh                 ← Benutzerfreundliches Installationsskript
+│   └── uninstall.sh               ← Deinstallationsskript
+└── .github/workflows/
+    └── build-deb.yml              ← GitHub Actions CI/CD
+```
 
-Voraussetzungen
-Voraussetzung	Warum nötig?
-Linux‑Distribution (Debian, Ubuntu, Fedora, Arch, …)	Das Skript nutzt Standard‑Unix‑Tools (cp, chmod, mkdir, ln, xdg-user-dir).
-Bash (≥ 4.x)	Das Skript ist ein Bash‑Shell‑Skript.
-Root‑Rechte (via sudo)	Zum Schreiben nach /usr/local/bin/ und in das System‑Icon‑Verzeichnis.
-gio (optional)	Setzt das Trust‑Attribut für GNOME‑Desktops (gio set … metadata::trusted true).
-update-desktop-database (optional)	Aktualisiert die Desktop‑Datenbank, damit das Symbol sofort erscheint.
-Python‑Interpreter (falls das Programm selbst ausgeführt wird)	Das eigentliche Programm ist ein Python‑Script.
+---
 
-    Hinweis: Alle genannten Programme sind in den meisten Standard‑Repos enthalten.
-    Beispiel (Debian/Ubuntu): sudo apt install python3 gio-bin desktop-file-utils
+## 🛠 Voraussetzungen (Build-System)
 
-Dateistruktur im Repo
-├─ zaehlerstaende.py          # Dein Python‑Programm
-├─ data/
-│   └─ zaehler.png           # 48 × 48 px‑Icon (PNG) – **jetzt im data‑Ordner**
-├─ install.sh  # Das Installations‑Script (siehe unten)
-└─ README.md                  # Diese Datei
+```bash
+sudo apt update
+sudo apt install -y \
+    build-essential cmake ninja-build pkg-config \
+    qt6-base-dev qt6-declarative-dev qt6-tools-dev \
+    libgl1-mesa-dev \
+    dpkg-dev fakeroot lintian \
+    qml6-module-qtquick-controls \
+    qml6-module-qtquick-layouts \
+    qml6-module-qtquick-dialogs
 
-Falls du das Icon in einem Unterordner (data/zaehler.png) hast, passe einfach die Variable ICON_SRC im Skript an.
-Installations‑Schritte (einmalig)
+# Rust installieren
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source ~/.cargo/env
+```
 
-    Repository klonen / Dateien holen
+---
 
-    git clone https://github.com/dein‑account/zaehlerstaende.git
-    cd zaehlerstaende
+## 🚀 .deb Paket bauen
 
-Ausführungsrechte für das Skript setzen
+```bash
+# Im Projektroot ausführen:
+chmod +x packaging/scripts/build-deb.sh
+bash packaging/scripts/build-deb.sh
+```
 
-chmod +x install_zaehlerstaende.sh
+Das Skript führt automatisch aus:
 
-Skript ausführen (fragt nach deinem Passwort für sudo)
+| Schritt | Aktion |
+|---|---|
+| 1 | Voraussetzungen prüfen (cargo, dpkg-deb, fakeroot) |
+| 2 | `cargo build --release` ausführen |
+| 3 | Binary in Paketstruktur kopieren |
+| 4 | Dateiberechtigungen korrekt setzen |
+| 5 | Installierte Größe berechnen |
+| 6 | MD5-Prüfsummen generieren |
+| 7 | `.deb` mit `fakeroot dpkg-deb` bauen |
+| 8 | Paketinhalt anzeigen |
+| 9 | Lintian-Qualitätsprüfung (falls installiert) |
 
-./install_zaehlerstaende.sh
+**Ausgabe:** `dist/verbrauchsmanager_1.0.0_amd64.deb`
 
-    Fertig!
-        Das Programm ist jetzt über das Anwendungsmenü startbar.
-        Eine Verknüpfung befindet sich auf deinem Schreibtisch.
+### Optional: Nur packen, ohne neu zu kompilieren
 
-Wie das Skript funktioniert – kurze Erläuterung
-Abschnitt	Aufgabe
-1. Programmdatei	Kopiert das Python‑Script nach /usr/local/bin/ (global im System) und macht es ausführbar.
-2. Icon	Legt ein 48 × 48 px‑PNG‑Icon in das standardisierte Icon‑Verzeichnis hicolor/48x48/apps/. Das Icon ist für alle Nutzer lesbar (chmod a+r).
-3. .desktop‑Eintrag	Erstellt eine zaehlerstaende.desktop‑Datei im persönlichen Anwendungsordner (~/.local/share/applications/). Der Eintrag referenziert das Programm und das Icon (nur den Namen, nicht den kompletten Pfad).
-4. Desktop‑Datenbank (optional)	Aktualisiert die interne Datenbank, sodass das neue Symbol sofort im Menü erscheint.
-5. Desktop‑Verknüpfung	Ermittelt den korrekten Desktop‑Ordner (xdg-user-dir DESKTOP), legt dort einen symbolischen Link zur .desktop‑Datei an und setzt das Ausführungs‑Flag. Für GNOME wird das Trust‑Attribut gesetzt, damit kein Warndialog erscheint.
-Nach der Installation – was tun?
+```bash
+bash packaging/scripts/build-deb.sh --skip-compile
+```
 
-    Im Anwendungsmenü: Suche nach „Zählerstände“ – das Symbol sollte sichtbar sein.
-    Auf dem Schreibtisch: Doppelklicke die Verknüpfung, um das Programm zu starten.
-    Falls das Icon nicht angezeigt wird:
-        Prüfe, ob die Datei /usr/local/share/icons/hicolor/48x48/apps/zaehlerstaende.png existiert und lesbar ist (ls -l …).
-        Starte ggf. deine Desktop‑Session neu oder führe update-desktop-database erneut aus.
+---
 
-Fehlerbehebung / FAQ
-Problem	mögliche Ursache	Lösung
-Keine Verknüpfung auf dem Desktop	Desktop‑Pfad ist nicht ~/Desktop (z. B. lokalisierte Sprache)	xdg-user-dir DESKTOP ausführen, Pfad prüfen, ggf. DESKTOP_DIR manuell setzen.
-Warnung „Datei ist nicht vertrauenswürdig“ (GNOME)	.desktop‑Datei ist nicht als trusted markiert	Rechtsklick → Eigenschaften → Als vertrauenswürdig markieren oder gio set … metadata::trusted true.
-Icon wird im Menü nicht angezeigt	Icon‑Datei fehlt, falsche Größe, falsche Berechtigungen	sudo chmod a+r /usr/local/share/icons/hicolor/48x48/apps/zaehlerstaende.png und ggf. weitere Größen (16x16, 32x32, 64x64) hinzufügen.
-sudo: command not found	sudo nicht installiert (z. B. minimaler Container)	Installiere sudo (z. B. apt install sudo) oder führe das Skript als root (su -c "./install_zaehlerstaende.sh").
-xdg-user-dir fehlt	Paket xdg-utils nicht installiert	sudo apt install xdg-utils (oder entsprechendes Paket für deine Distribution).
-Lizenz & Hinweis
+## 📥 Installation
 
-Dieses Installations‑Skript und die zugehörige Dokumentation stehen unter der MIT‑License.
-Sie dürfen frei verwendet, modifiziert und verbreitet werden – bitte behalten Sie den Lizenz‑Header im Skript bei.
+### Methode 1: Installationsskript (empfohlen)
 
-    Disclaimer:
-    Dieses Skript ändert System‑Verzeichnisse (/usr/local/...). Es wurde für typische Linux‑Desktop‑Umgebungen entwickelt und sollte nicht auf Server‑Instanzen ohne grafische Oberfläche eingesetzt werden. Prüfen Sie stets, ob Sie die nötigen Rechte besitzen, bevor Sie Änderungen am System vornehmen.
+```bash
+# Installiert automatisch alle Qt6-Abhängigkeiten
+sudo bash packaging/scripts/install.sh
+```
 
-Viel Spaß beim Verwalten deiner Zählerstände! 🚀
+### Methode 2: Manuell mit apt (empfohlen für Endnutzer)
+
+```bash
+# 1. Paket installieren
+sudo dpkg -i dist/verbrauchsmanager_1.0.0_amd64.deb
+
+# 2. Fehlende Abhängigkeiten automatisch nachholen
+sudo apt-get install -f
+```
+
+### Methode 3: Mit apt (löst Abhängigkeiten automatisch auf)
+
+```bash
+sudo apt install ./dist/verbrauchsmanager_1.0.0_amd64.deb
+```
+
+---
+
+## ▶ Programm starten
+
+```bash
+# Terminal
+verbrauchsmanager
+
+# Mit alternativem Qt-Style
+QT_QUICK_CONTROLS_STYLE=Material verbrauchsmanager
+
+# Oder über das Anwendungsmenü:
+# Programme → Hilfsprogramme → Verbrauchsmanager
+```
+
+---
+
+## 🗑 Deinstallation
+
+```bash
+# Paket entfernen (Konfiguration bleibt)
+sudo apt remove verbrauchsmanager
+
+# Paket + Konfiguration entfernen
+sudo apt purge verbrauchsmanager
+
+# Benutzerdaten manuell löschen (optional)
+rm -rf ~/.local/share/verbrauchsmanager/
+```
+
+---
+
+## 📋 Paketinhalt prüfen
+
+```bash
+# Inhalt anzeigen
+dpkg-deb --contents dist/verbrauchsmanager_1.0.0_amd64.deb
+
+# Metadaten anzeigen
+dpkg-deb --info dist/verbrauchsmanager_1.0.0_amd64.deb
+
+# Installierte Dateien eines installierten Pakets
+dpkg -L verbrauchsmanager
+
+# Lintian-Prüfung
+lintian dist/verbrauchsmanager_1.0.0_amd64.deb
+```
+
+---
+
+## ⚙ Konfigurationsdatei
+
+Die systemweite Konfiguration liegt in:
+
+```
+/etc/verbrauchsmanager/verbrauchsmanager.conf
+```
+
+```bash
+# Standard-Datenbankpfad überschreiben
+DB_PFAD=/srv/shared/verbrauch.db
+
+# Qt-Style ändern (Fusion | Material | Universal)
+QT_QUICK_CONTROLS_STYLE=Fusion
+
+# Sprache festlegen
+SPRACHE=de_DE.UTF-8
+```
+
+Diese Datei wird bei Paket-Updates **nicht überschrieben** (conffile).
+
+---
+
+## 🤖 Automatischer CI/CD-Build (GitHub Actions)
+
+Die Datei `.github/workflows/build-deb.yml` baut das Paket automatisch:
+
+- Bei jedem Push auf `main` oder `develop`
+- Bei Pull Requests
+- Bei Release-Tags (`v1.0.0`, `v1.2.3` etc.) → erstellt automatisch einen GitHub Release
+
+```bash
+# Release auslösen:
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+---
+
+## 🐛 Häufige Probleme
+
+### `dpkg: dependency problems`
+
+```bash
+sudo apt-get install -f
+```
+
+### `QML module not found`
+
+```bash
+sudo apt install qml6-module-qtquick-controls \
+                 qml6-module-qtquick-layouts \
+                 qml6-module-qtquick-dialogs
+```
+
+### Leeres Fenster / kein Inhalt
+
+```bash
+QT_QUICK_CONTROLS_STYLE=Fusion verbrauchsmanager
+```
+
+### Wayland-Probleme
+
+```bash
+QT_QPA_PLATFORM=xcb verbrauchsmanager
+```
