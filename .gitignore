@@ -4,8 +4,7 @@
 
 # ── Rust / Cargo ──────────────────────────────────────────────────────────────
 /target/
-# Cargo.lock bei Binaries einchecken, bei Libraries nicht
-# Cargo.lock
+# Cargo.lock wird eingecheckt (Binary-Projekt!)
 
 # ── Build-Ausgaben ────────────────────────────────────────────────────────────
 /dist/*.deb

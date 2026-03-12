@@ -1,22 +1,41 @@
 # .github/workflows/build-deb.yml
 # ─────────────────────────────────────────────────────────────────────────────
-# GitHub Actions Workflow: Baut automatisch ein .deb-Paket bei jedem Push
-# auf den main-Branch und bei Release-Tags.
+# GitHub Actions: Baut automatisch das .deb-Paket.
 #
-# Erzeugte Artefakte:
-#   - verbrauchsmanager_<version>_amd64.deb  (Download-Artefakt)
-#   - Automatischer GitHub-Release bei v*-Tags
+# Wird ausgelöst durch:
+#   1. Push auf main/develop
+#   2. Release-Tag (v1.0.0, v1.2.3 …)
+#   3. Manuell über GitHub-Oberfläche (Actions → Run workflow)
 # ─────────────────────────────────────────────────────────────────────────────
 
-name: Build .deb Paket
+name: "📦 Build .deb Paket"
 
 on:
+  # ── Automatisch bei Push ───────────────────────────────────────────────────
   push:
     branches: [ main, develop ]
-    tags:
-      - 'v*'
+    tags: [ 'v*' ]
+
+  # ── Automatisch bei Pull Requests ─────────────────────────────────────────
   pull_request:
     branches: [ main ]
+
+  # ── Manuell über GitHub-Oberfläche ────────────────────────────────────────
+  # Klicke im Browser: Actions → "Build .deb Paket" → "Run workflow"
+  workflow_dispatch:
+    inputs:
+      version_override:
+        description: 'Version überschreiben (leer = aus Cargo.toml lesen)'
+        required: false
+        default: ''
+      create_release:
+        description: 'GitHub Release erstellen?'
+        required: true
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 env:
   CARGO_TERM_COLOR: always
@@ -24,25 +43,25 @@ env:
 
 jobs:
   build-deb:
-    name: Build Debian Package (Ubuntu 22.04)
+    name: "📦 Debian Paket bauen (Ubuntu 22.04)"
     runs-on: ubuntu-22.04
 
     steps:
-      # ── Quellcode laden ──────────────────────────────────────────────────────
-      - name: Quellcode auschecken
+      # ── Quellcode laden ────────────────────────────────────────────────────
+      - name: "📥 Quellcode auschecken"
         uses: actions/checkout@v4
 
-      # ── Rust-Toolchain ────────────────────────────────────────────────────────
-      - name: Rust stable installieren
+      # ── Rust Toolchain ─────────────────────────────────────────────────────
+      - name: "🦀 Rust stable installieren"
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Rust-Cache laden
+      - name: "⚡ Rust-Cache laden"
         uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
 
-      # ── System-Abhängigkeiten ─────────────────────────────────────────────────
-      - name: Qt6 und Build-Tools installieren
+      # ── System-Abhängigkeiten ──────────────────────────────────────────────
+      - name: "📦 Qt6 und Build-Tools installieren"
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y \
@@ -56,57 +75,79 @@ jobs:
             qml6-module-qtquick-layouts \
             qml6-module-qtquick-dialogs
 
-      # ── Version aus Cargo.toml lesen ──────────────────────────────────────────
-      - name: Version lesen
+      # ── Version bestimmen ──────────────────────────────────────────────────
+      - name: "🔖 Version bestimmen"
         id: version
         run: |
-          VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          if [[ -n "${{ github.event.inputs.version_override }}" ]]; then
+            VERSION="${{ github.event.inputs.version_override }}"
+            echo "Version manuell gesetzt: ${VERSION}"
+          else
+            VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/.*"\(.*\)".*/\1/')
+            echo "Version aus Cargo.toml: ${VERSION}"
+          fi
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "Paketversion: ${VERSION}"
 
-      # ── Rust kompilieren ──────────────────────────────────────────────────────
-      - name: Release-Binary kompilieren
-        run: cargo build --release --locked
+      # ── Release-Flag setzen ────────────────────────────────────────────────
+      - name: "🏷️ Release-Flag bestimmen"
+        id: flags
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/v* ]] || \
+             [[ "${{ github.event.inputs.create_release }}" == "true" ]]; then
+            echo "do_release=true"  >> "$GITHUB_OUTPUT"
+          else
+            echo "do_release=false" >> "$GITHUB_OUTPUT"
+          fi
 
-      # ── .deb bauen ────────────────────────────────────────────────────────────
-      - name: .deb Paket bauen
+      # ── Rust kompilieren ───────────────────────────────────────────────────
+      - name: "🔨 Release-Binary kompilieren"
+        run: cargo build --release
+
+      # ── .deb Paket bauen ───────────────────────────────────────────────────
+      - name: "📦 .deb Paket bauen"
         run: |
           chmod +x packaging/scripts/build-deb.sh
           bash packaging/scripts/build-deb.sh --skip-compile
 
-      # ── Lintian-Prüfung ───────────────────────────────────────────────────────
-      - name: Lintian Qualitätsprüfung
+      # ── Lintian Qualitätsprüfung ───────────────────────────────────────────
+      - name: "✅ Lintian Qualitätsprüfung"
         run: |
           lintian --color always \
             dist/verbrauchsmanager_${{ steps.version.outputs.version }}_amd64.deb || true
 
-      # ── Paket als Artefakt hochladen ──────────────────────────────────────────
-      - name: .deb als Artefakt hochladen
+      # ── Paket als Artefakt hochladen (immer) ──────────────────────────────
+      - name: "💾 .deb als Artefakt speichern"
         uses: actions/upload-artifact@v4
         with:
-          name: verbrauchsmanager-deb-${{ steps.version.outputs.version }}
+          name: "verbrauchsmanager_${{ steps.version.outputs.version }}_amd64"
           path: dist/verbrauchsmanager_*.deb
           retention-days: 30
 
-      # ── GitHub Release erstellen (nur bei v*-Tags) ────────────────────────────
-      - name: GitHub Release erstellen
-        if: startsWith(github.ref, 'refs/tags/v')
+      # ── GitHub Release erstellen (nur bei v*-Tag oder manueller Wahl) ─────
+      - name: "🚀 GitHub Release erstellen"
+        if: steps.flags.outputs.do_release == 'true'
         uses: softprops/action-gh-release@v1
         with:
           name: "Verbrauchsmanager v${{ steps.version.outputs.version }}"
+          tag_name: "v${{ steps.version.outputs.version }}"
           body: |
             ## ⚡ Verbrauchsmanager v${{ steps.version.outputs.version }}
 
-            ### Installation
+            Strom (kWh), Wasser (m³) und Gas (m³) erfassen und auswerten.
+
+            ### 📥 Installation auf Ubuntu / Debian
+
             ```bash
-            # Paket herunterladen und installieren
+            # 1. Paket herunterladen und installieren
             sudo dpkg -i verbrauchsmanager_${{ steps.version.outputs.version }}_amd64.deb
-            sudo apt-get install -f   # Abhängigkeiten nachholen
+
+            # 2. Fehlende Abhängigkeiten automatisch nachholen
+            sudo apt-get install -f
             ```
 
-            ### Voraussetzungen
+            ### ✅ Voraussetzungen
             - Ubuntu 22.04 / Debian 12 oder neuer
-            - Qt 6.2 oder neuer (`sudo apt install libqt6core6 libqt6qml6 libqt6quick6`)
+            - Qt 6.2 oder neuer
           files: dist/verbrauchsmanager_*.deb
           draft: false
           prerelease: false
