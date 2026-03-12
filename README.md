@@ -1,238 +1,191 @@
-# 📦 Debian-Paket (.deb) – Anleitung
+# ⚡ Verbrauchsmanager
 
-Diese Anleitung erklärt, wie das `.deb`-Paket für den Verbrauchsmanager
-gebaut, installiert und deinstalliert wird.
-
----
-
-## 🗂 Verzeichnisstruktur
-
-```
-packaging/
-├── debian/                        ← .deb Paketstruktur
-│   ├── DEBIAN/
-│   │   ├── control                ← Paket-Metadaten (Name, Version, Abhängigkeiten)
-│   │   ├── conffiles              ← Konfigurationsdateien (werden bei Update nicht überschrieben)
-│   │   ├── postinst               ← Skript nach der Installation
-│   │   ├── prerm                  ← Skript vor der Deinstallation
-│   │   └── postrm                 ← Skript nach der Deinstallation
-│   ├── etc/
-│   │   └── verbrauchsmanager/
-│   │       └── verbrauchsmanager.conf   ← Systemweite Konfiguration
-│   └── usr/
-│       ├── bin/
-│       │   └── verbrauchsmanager        ← Startskript (Shell-Wrapper)
-│       ├── lib/
-│       │   └── verbrauchsmanager/
-│       │       └── verbrauchsmanager-bin ← Eigentliches Rust-Binary
-│       ├── share/
-│       │   ├── applications/
-│       │   │   └── verbrauchsmanager.desktop ← App-Menü-Eintrag
-│       │   ├── icons/hicolor/
-│       │   │   └── */apps/verbrauchsmanager.svg
-│       │   └── doc/verbrauchsmanager/
-│       │       ├── copyright
-│       │       └── changelog.gz
-├── scripts/
-│   ├── build-deb.sh               ← Haupt-Build-Skript
-│   ├── install.sh                 ← Benutzerfreundliches Installationsskript
-│   └── uninstall.sh               ← Deinstallationsskript
-└── .github/workflows/
-    └── build-deb.yml              ← GitHub Actions CI/CD
-```
+Ein modernes Desktop-Programm zum Erfassen und Auswerten von
+**Strom (kWh)**, **Wasser (m³)** und **Gas (m³)** –
+gebaut mit **Rust** und **Qt 6 (QML)**.
 
 ---
 
-## 🛠 Voraussetzungen (Build-System)
+## 📦 Features
 
+| Funktion | Beschreibung |
+|---|---|
+| Verbrauch erfassen | Datum, Wert und optionale Notiz pro Eintrag |
+| Datenbank-Info | Vollständiger Pfad und Dateigröße werden angezeigt |
+| Neue DB erstellen | Beliebigen Speicherort per Dateidialog wählen |
+| DB öffnen | Vorhandene `.db`/`.sqlite`-Datei laden |
+| CSV-Export | Alle drei Verbrauchsarten in einer Datei |
+| XLSX-Export | Excel-Datei mit je einem Blatt pro Art + Summenzeile |
+| Statistik | Gesamtverbrauch und Anzahl Einträge je Art |
+| Löschen | Jeden Eintrag einzeln entfernen |
+
+---
+
+## 🛠 Voraussetzungen
+
+### System-Pakete
+
+**Ubuntu / Debian:**
 ```bash
 sudo apt update
 sudo apt install -y \
     build-essential cmake ninja-build pkg-config \
     qt6-base-dev qt6-declarative-dev qt6-tools-dev \
-    libgl1-mesa-dev \
-    dpkg-dev fakeroot lintian \
-    qml6-module-qtquick-controls \
-    qml6-module-qtquick-layouts \
-    qml6-module-qtquick-dialogs
+    libgl1-mesa-dev libsqlite3-dev
+```
 
-# Rust installieren
+**Fedora / RHEL:**
+```bash
+sudo dnf install -y \
+    gcc cmake ninja-build pkg-config \
+    qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qttools \
+    mesa-libGL-devel sqlite-devel
+```
+
+**macOS (Homebrew):**
+```bash
+brew install qt6 cmake ninja
+export PATH="/opt/homebrew/opt/qt/bin:$PATH"
+```
+
+**Windows (MSVC + vcpkg):**
+```powershell
+# Qt 6 via Installer: https://www.qt.io/download-qt-installer
+# Dann:
+set Qt6_DIR=C:\Qt\6.x.x\msvc2022_64\lib\cmake\Qt6
+```
+
+### Rust
+```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-source ~/.cargo/env
+rustup update stable
 ```
 
 ---
 
-## 🚀 .deb Paket bauen
+## 🚀 Kompilieren und Starten
 
 ```bash
-# Im Projektroot ausführen:
-chmod +x packaging/scripts/build-deb.sh
-bash packaging/scripts/build-deb.sh
+# 1. Repository klonen / Ordner entpacken
+cd verbrauchsmanager
+
+# 2. Debug-Build (schneller)
+cargo run
+
+# 3. Release-Build (optimiert)
+cargo build --release
+./target/release/verbrauchsmanager
 ```
 
-Das Skript führt automatisch aus:
+---
 
-| Schritt | Aktion |
+## 📁 Datenbankpfad
+
+Die SQLite-Datenbank wird standardmäßig hier gespeichert:
+
+| Betriebssystem | Pfad |
 |---|---|
-| 1 | Voraussetzungen prüfen (cargo, dpkg-deb, fakeroot) |
-| 2 | `cargo build --release` ausführen |
-| 3 | Binary in Paketstruktur kopieren |
-| 4 | Dateiberechtigungen korrekt setzen |
-| 5 | Installierte Größe berechnen |
-| 6 | MD5-Prüfsummen generieren |
-| 7 | `.deb` mit `fakeroot dpkg-deb` bauen |
-| 8 | Paketinhalt anzeigen |
-| 9 | Lintian-Qualitätsprüfung (falls installiert) |
+| **Linux** | `~/.local/share/verbrauchsmanager/verbrauch.db` |
+| **macOS** | `~/Library/Application Support/verbrauchsmanager/verbrauch.db` |
+| **Windows** | `%APPDATA%\Local\verbrauchsmanager\verbrauch.db` |
 
-**Ausgabe:** `dist/verbrauchsmanager_1.0.0_amd64.deb`
+Der Pfad wird in der Statusleiste unten und im **Datenbank-Tab** angezeigt.
+Über *Neue Datenbank erstellen* kann ein beliebiger anderer Ort gewählt werden.
 
-### Optional: Nur packen, ohne neu zu kompilieren
+---
 
-```bash
-bash packaging/scripts/build-deb.sh --skip-compile
+## 📊 Datenbankschema
+
+```sql
+-- Tabelle für Strom
+CREATE TABLE strom (
+    id    INTEGER PRIMARY KEY AUTOINCREMENT,
+    datum TEXT    NOT NULL,          -- Format: "YYYY-MM-DD"
+    wert  REAL    NOT NULL CHECK(wert >= 0),
+    notiz TEXT    NOT NULL DEFAULT ''
+);
+
+-- Identisch für: wasser, gas
+CREATE INDEX idx_strom_datum ON strom(datum DESC);
 ```
 
 ---
 
-## 📥 Installation
+## 📄 CSV-Export (Beispiel)
 
-### Methode 1: Installationsskript (empfohlen)
-
-```bash
-# Installiert automatisch alle Qt6-Abhängigkeiten
-sudo bash packaging/scripts/install.sh
 ```
-
-### Methode 2: Manuell mit apt (empfohlen für Endnutzer)
-
-```bash
-# 1. Paket installieren
-sudo dpkg -i dist/verbrauchsmanager_1.0.0_amd64.deb
-
-# 2. Fehlende Abhängigkeiten automatisch nachholen
-sudo apt-get install -f
-```
-
-### Methode 3: Mit apt (löst Abhängigkeiten automatisch auf)
-
-```bash
-sudo apt install ./dist/verbrauchsmanager_1.0.0_amd64.deb
+Art,Datum,Wert,Einheit,Notiz
+Strom,2024-01-15,312.5000,kWh,Hauptzähler
+Strom,2024-02-15,287.2300,kWh,
+Wasser,2024-01-15,4.8500,m³,Keller-Zähler
+Gas,2024-01-15,123.4000,m³,
 ```
 
 ---
 
-## ▶ Programm starten
+## 📊 XLSX-Export
 
-```bash
-# Terminal
-verbrauchsmanager
+Die Excel-Datei enthält **drei Tabellenblätter**:
 
-# Mit alternativem Qt-Style
-QT_QUICK_CONTROLS_STYLE=Material verbrauchsmanager
+- `Strom (kWh)` – alle Stromeinträge + Gesamtsumme
+- `Wasser (m³)` – alle Wassereinträge + Gesamtsumme
+- `Gas (m³)` – alle Gaseinträge + Gesamtsumme
 
-# Oder über das Anwendungsmenü:
-# Programme → Hilfsprogramme → Verbrauchsmanager
+---
+
+## 🗂 Projektstruktur
+
+```
+verbrauchsmanager/
+├── Cargo.toml          # Abhängigkeiten & Build-Konfiguration
+├── build.rs            # Qt6-Build-Skript (cxx-qt-build)
+├── src/
+│   ├── main.rs         # Einstiegspunkt, Qt-App-Initialisierung
+│   ├── bridge.rs       # cxx-qt-Bridge: Qt ↔ Rust Schnittstelle
+│   └── datenbank.rs    # SQLite-Operationen, CSV/XLSX-Export
+└── qml/
+    ├── main.qml        # Hauptfenster, TabBar, Layout
+    ├── EingabeSeite.qml   # Eingabeformular + Tabelle (3× verwendet)
+    └── DatenbankSeite.qml # DB-Verwaltung, Statistik, Export
 ```
 
 ---
 
-## 🗑 Deinstallation
+## 📦 Verwendete Bibliotheken
 
+| Crate | Zweck |
+|---|---|
+| `cxx-qt` | Rust ↔ Qt6 QObject-Bindings |
+| `cxx-qt-lib` | Qt-Typen (QString, QStringList …) |
+| `rusqlite` | SQLite (statisch gelinkt, kein extra sqlite3 nötig) |
+| `csv` | CSV-Export |
+| `xlsxwriter` | Excel-XLSX-Export |
+| `chrono` | Datum/Zeit-Validierung |
+| `dirs` | Betriebssystem-spezifische Datenpfade |
+| `anyhow` | Fehlerbehandlung |
+
+---
+
+## 🐛 Häufige Fehler
+
+**`Qt6 not found`**
 ```bash
-# Paket entfernen (Konfiguration bleibt)
-sudo apt remove verbrauchsmanager
+export CMAKE_PREFIX_PATH=/path/to/Qt/6.x.x/gcc_64
+```
 
-# Paket + Konfiguration entfernen
-sudo apt purge verbrauchsmanager
+**`libGL not found`** (Linux)
+```bash
+sudo apt install libgl1-mesa-dev
+```
 
-# Benutzerdaten manuell löschen (optional)
-rm -rf ~/.local/share/verbrauchsmanager/
+**Fenster öffnet sich nicht / leer**
+- Qt Quick Controls 2 Style setzen:
+```bash
+QT_QUICK_CONTROLS_STYLE=Fusion ./verbrauchsmanager
 ```
 
 ---
 
-## 📋 Paketinhalt prüfen
+## 📜 Lizenz
 
-```bash
-# Inhalt anzeigen
-dpkg-deb --contents dist/verbrauchsmanager_1.0.0_amd64.deb
-
-# Metadaten anzeigen
-dpkg-deb --info dist/verbrauchsmanager_1.0.0_amd64.deb
-
-# Installierte Dateien eines installierten Pakets
-dpkg -L verbrauchsmanager
-
-# Lintian-Prüfung
-lintian dist/verbrauchsmanager_1.0.0_amd64.deb
-```
-
----
-
-## ⚙ Konfigurationsdatei
-
-Die systemweite Konfiguration liegt in:
-
-```
-/etc/verbrauchsmanager/verbrauchsmanager.conf
-```
-
-```bash
-# Standard-Datenbankpfad überschreiben
-DB_PFAD=/srv/shared/verbrauch.db
-
-# Qt-Style ändern (Fusion | Material | Universal)
-QT_QUICK_CONTROLS_STYLE=Fusion
-
-# Sprache festlegen
-SPRACHE=de_DE.UTF-8
-```
-
-Diese Datei wird bei Paket-Updates **nicht überschrieben** (conffile).
-
----
-
-## 🤖 Automatischer CI/CD-Build (GitHub Actions)
-
-Die Datei `.github/workflows/build-deb.yml` baut das Paket automatisch:
-
-- Bei jedem Push auf `main` oder `develop`
-- Bei Pull Requests
-- Bei Release-Tags (`v1.0.0`, `v1.2.3` etc.) → erstellt automatisch einen GitHub Release
-
-```bash
-# Release auslösen:
-git tag v1.0.0
-git push origin v1.0.0
-```
-
----
-
-## 🐛 Häufige Probleme
-
-### `dpkg: dependency problems`
-
-```bash
-sudo apt-get install -f
-```
-
-### `QML module not found`
-
-```bash
-sudo apt install qml6-module-qtquick-controls \
-                 qml6-module-qtquick-layouts \
-                 qml6-module-qtquick-dialogs
-```
-
-### Leeres Fenster / kein Inhalt
-
-```bash
-QT_QUICK_CONTROLS_STYLE=Fusion verbrauchsmanager
-```
-
-### Wayland-Probleme
-
-```bash
-QT_QPA_PLATFORM=xcb verbrauchsmanager
-```
+MIT License – frei verwendbar und modifizierbar.

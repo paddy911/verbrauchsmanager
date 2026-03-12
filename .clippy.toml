@@ -1,0 +1,14 @@
+# .clippy.toml
+# ─────────────────────────────────────────────────────────────────────────────
+# Clippy-Konfiguration (Rust-Linter)
+# Wird von "cargo clippy" und dem rust-analyzer in VS Code verwendet.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Maximale Zeilenlänge (wie in rustfmt.toml)
+too-many-lines-threshold     = 80
+
+# Maximale Anzahl Parameter pro Funktion
+too-many-arguments-threshold = 8
+
+# Maximale Verschachtelungstiefe
+cognitive-complexity-threshold = 25
