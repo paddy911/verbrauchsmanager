@@ -1,0 +1,43 @@
+app-id: de.paddy911.Verbrauchsmanager
+runtime: org.freedesktop.Platform
+runtime-version: '23.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+
+command: verbrauchsmanager
+
+finish-args:
+  - --share=ipc
+  # Wayland + X11 Fallback (egui unterstützt beides)
+  - --socket=wayland
+  - --socket=fallback-x11
+  # GPU-Zugriff für egui (OpenGL / wgpu)
+  - --device=dri
+  # Dateizugriff für rfd-Dateidialoge und SQLite-Datenbank
+  - --filesystem=home
+  # xdg-desktop-portal für native Dateidialoge (rfd)
+  - --talk-name=org.freedesktop.portal.Desktop
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/verbrauchsmanager/cargo
+
+modules:
+  - name: verbrauchsmanager
+    buildsystem: simple
+    build-commands:
+      - cargo build --release --offline
+      - install -Dm755 target/release/verbrauchsmanager
+            /app/bin/verbrauchsmanager
+      - install -Dm644 packaging/de.paddy911.Verbrauchsmanager.desktop
+            /app/share/applications/de.paddy911.Verbrauchsmanager.desktop
+      - install -Dm644 packaging/de.paddy911.Verbrauchsmanager.metainfo.xml
+            /app/share/metainfo/de.paddy911.Verbrauchsmanager.metainfo.xml
+    sources:
+      - type: dir
+        path: ..
+      # Wird erzeugt mit:
+      # flatpak-cargo-generator Cargo.lock -o packaging/cargo-sources.json
+      - cargo-sources.json

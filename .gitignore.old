@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# .gitignore für Verbrauchsmanager (Rust + egui)
+# .gitignore für Verbrauchsmanager (Rust + Qt6)
 # ─────────────────────────────────────────────────────────────────────────────
 
 # ── Rust / Cargo ──────────────────────────────────────────────────────────────
@@ -9,13 +9,19 @@
 # ── Build-Ausgaben ────────────────────────────────────────────────────────────
 /dist/*.deb
 /dist/*.rpm
-*.flatpak
 
-# ── Flatpak ───────────────────────────────────────────────────────────────────
-packaging/build-dir/
-packaging/repo/
-packaging/.flatpak-builder/
-# cargo-sources.json EINCHECKEN ✅ (wird von flatpak-cargo-generator erzeugt)
+# ── Qt / CMake (falls cmake direkt verwendet wird) ───────────────────────────
+build/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.moc
+moc_*.cpp
+qrc_*.cpp
+*.pro.user
+*.qmlc
+*.jsc
 
 # ── Betriebssystem ────────────────────────────────────────────────────────────
 # macOS
@@ -30,6 +36,7 @@ desktop.ini
 .nfs*
 
 # ── VS Code ───────────────────────────────────────────────────────────────────
+# Nutzereinstellungen NICHT einchecken (sind machine-spezifisch)
 # Projekteinstellungen (.vscode/) EINCHECKEN ✅
 # .vscode/
 

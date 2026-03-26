@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Verbrauchsmanager
+GenericName=Verbrauchserfassung
+Comment=Strom, Wasser und Gas Verbrauch erfassen und auswerten
+Exec=verbrauchsmanager
+Icon=de.paddy911.Verbrauchsmanager
+Terminal=false
+Type=Application
+Categories=Utility;Finance;
+Keywords=Strom;Wasser;Gas;Verbrauch;Zähler;
+StartupNotify=true

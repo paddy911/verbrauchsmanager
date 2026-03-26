@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>de.paddy911.Verbrauchsmanager</id>
+
+  <name>Verbrauchsmanager</name>
+  <summary>Strom, Wasser und Gas erfassen und auswerten</summary>
+
+  <description>
+    <p>
+      Modernes Desktop-Programm zum Erfassen und Auswerten von
+      Strom (kWh), Wasser (m³) und Gas (m³).
+    </p>
+    <ul>
+      <li>Verbrauch mit Datum und optionaler Notiz erfassen</li>
+      <li>Differenz zum letzten Eintrag automatisch berechnen</li>
+      <li>Gesamtstatistik für alle drei Verbrauchsarten</li>
+      <li>Export als CSV oder Excel (XLSX)</li>
+      <li>SQLite-Datenbank – lokal und ohne Cloud</li>
+      <li>Mehrere Datenbanken verwaltbar</li>
+    </ul>
+  </description>
+
+  <launchable type="desktop-id">de.paddy911.Verbrauchsmanager.desktop</launchable>
+
+  <url type="homepage">https://github.com/paddy911/verbrauchsmanager</url>
+  <url type="bugtracker">https://github.com/paddy911/verbrauchsmanager/issues</url>
+
+  <releases>
+    <release version="0.1.2" date="2026-03-26">
+      <description>
+        <p>Differenz zum letzten Eintrag in der Statistik anzeigen.</p>
+      </description>
+    </release>
+    <release version="0.1.1" date="2026-03-12"/>
+  </releases>
+
+  <content_rating type="oars-1.1"/>
+
+  <metadata_license>MIT</metadata_license>
+  <project_license>MIT</project_license>
+</component>
